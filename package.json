@@ -1,0 +1,23 @@
+{
+  "name": "pathforge-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.19.0",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"blue.bold,green.bold\" \"pnpm --filter @pathforge/api dev\" \"pnpm --filter @pathforge/web dev\"",
+    "dev:api": "pnpm --filter @pathforge/api dev",
+    "dev:web": "pnpm --filter @pathforge/web dev",
+    "build": "pnpm --recursive run build",
+    "lint": "pnpm --recursive run lint",
+    "test": "pnpm --recursive run test",
+    "db:generate": "pnpm --filter @pathforge/api db:generate",
+    "db:migrate": "pnpm --filter @pathforge/api db:migrate",
+    "db:seed": "pnpm --filter @pathforge/api db:seed",
+    "db:push": "pnpm --filter @pathforge/api db:push",
+    "db:studio": "pnpm --filter @pathforge/api db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+
