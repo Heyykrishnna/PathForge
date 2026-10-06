@@ -1,0 +1,38 @@
+export const API_BASE_PATH = '/api/v1';
+
+export const HTTP_STATUS = Object.freeze({
+  OK: 200,
+  CREATED: 201,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  UNPROCESSABLE_ENTITY: 422,
+  INTERNAL_SERVER_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503
+});
+
+export const ERROR_CODES = Object.freeze({
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  NOT_FOUND: 'NOT_FOUND',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  CONFLICT: 'CONFLICT',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  BAD_REQUEST: 'BAD_REQUEST'
+});
+
+export const SERVICE_STATUS = Object.freeze({
+  HEALTHY: 'healthy',
+  DEGRADED: 'degraded',
+  UNHEALTHY: 'unhealthy'
+});
+
+export const DATABASE_STATUS = Object.freeze({
+  CONNECTED: 'connected',
+  DISCONNECTED: 'disconnected'
+});
+
