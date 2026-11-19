@@ -16,6 +16,15 @@ export const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Verification token is required')
 });
 
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  otp: z.string().trim().length(6, 'Verification code must be 6 digits')
+});
+
+export const resendOtpSchema = z.object({
+  email: z.string().email('Invalid email address')
+});
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address')
 });

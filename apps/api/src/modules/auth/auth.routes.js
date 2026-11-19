@@ -7,6 +7,8 @@ import {
   registerSchema,
   loginSchema,
   verifyEmailSchema,
+  verifyOtpSchema,
+  resendOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema
 } from '@pathforge/shared';
@@ -21,6 +23,8 @@ authRouter.post('/revoke-all', authenticate, authController.revokeAll);
 authRouter.get('/me', authenticate, authController.me);
 authRouter.delete('/account', authenticate, authController.deleteAccount);
 authRouter.post('/verify-email', validateRequest({ body: verifyEmailSchema }), authController.verifyEmail);
+authRouter.post('/verify-otp', validateRequest({ body: verifyOtpSchema }), authController.verifyOtp);
+authRouter.post('/resend-otp', validateRequest({ body: resendOtpSchema }), authController.resendOtp);
 authRouter.post('/forgot-password', validateRequest({ body: forgotPasswordSchema }), authController.forgotPassword);
 authRouter.post('/reset-password', validateRequest({ body: resetPasswordSchema }), authController.resetPassword);
 

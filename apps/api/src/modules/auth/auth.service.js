@@ -1,10 +1,22 @@
+import { randomInt } from 'node:crypto';
 import { eq, and, gt } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { users, sessions, emailVerificationTokens, passwordResetTokens, profiles } from '../../db/schema/index.js';
+import {
+  users,
+  sessions,
+  emailVerificationTokens,
+  passwordResetTokens,
+  profiles
+} from '../../db/schema/index.js';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
-import { generateAccessToken, generateRandomToken, hashToken } from '../../utils/token.js';
+import {
+  generateAccessToken,
+  generateRandomToken,
+  hashToken
+} from '../../utils/token.js';
 import { ApiError } from '../../utils/api-error.js';
 import { env } from '../../config/env.js';
+import { sendOtpEmail } from '../../utils/mailer.js';
 
 export class AuthService {
   async register({ email, password, firstName, lastName }) {
@@ -17,49 +29,68 @@ export class AuthService {
       .limit(1);
 
     if (existingUser.length > 0) {
-      throw ApiError.conflict('An account with this email address already exists');
+      throw ApiError.conflict(
+        'An account with this email address already exists'
+      );
     }
 
     const passwordHash = await hashPassword(password);
 
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        passwordHash,
-        isEmailVerified: false
-      })
-      .returning();
+    return db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          email: normalizedEmail,
+          passwordHash,
+          isEmailVerified: false
+        })
+        .returning();
 
-    const [newProfile] = await db
-      .insert(profiles)
-      .values({
+      const [newProfile] = await tx
+        .insert(profiles)
+        .values({
+          userId: newUser.id,
+          firstName: firstName
+            ? firstName.trim()
+            : normalizedEmail.split('@')[0],
+          lastName: lastName ? lastName.trim() : '',
+          completionPercentage: 20
+        })
+        .returning();
+
+      const rawVerificationToken = generateRandomToken();
+      const verificationTokenHash = hashToken(rawVerificationToken);
+      const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await tx.insert(emailVerificationTokens).values({
         userId: newUser.id,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        completionPercentage: 20
-      })
-      .returning();
+        tokenHash: verificationTokenHash,
+        expiresAt: tokenExpiresAt
+      });
 
-    const rawVerificationToken = generateRandomToken();
-    const verificationTokenHash = hashToken(rawVerificationToken);
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const otp = randomInt(100000, 1000000).toString();
+      const otpHash = hashToken(`${normalizedEmail}:${otp}`);
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await db.insert(emailVerificationTokens).values({
-      userId: newUser.id,
-      tokenHash: verificationTokenHash,
-      expiresAt
+      await tx.insert(emailVerificationTokens).values({
+        userId: newUser.id,
+        tokenHash: otpHash,
+        expiresAt: otpExpiresAt
+      });
+
+      await sendOtpEmail({ to: normalizedEmail, otp });
+
+      return {
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          isEmailVerified: newUser.isEmailVerified
+        },
+        profile: newProfile,
+        verificationToken: rawVerificationToken,
+        otp: env.NODE_ENV === 'test' ? otp : undefined
+      };
     });
-
-    return {
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        isEmailVerified: newUser.isEmailVerified
-      },
-      profile: newProfile,
-      verificationToken: rawVerificationToken
-    };
   }
 
   async login({ email, password, userAgent, ipAddress }) {
@@ -87,7 +118,9 @@ export class AuthService {
 
     const rawRefreshToken = generateRandomToken();
     const refreshTokenHash = hashToken(rawRefreshToken);
-    const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+    );
 
     await db.insert(sessions).values({
       userId: user.id,
@@ -98,11 +131,24 @@ export class AuthService {
       expiresAt
     });
 
-    const [profile] = await db
+    let [profile] = await db
       .select()
       .from(profiles)
       .where(eq(profiles.userId, user.id))
       .limit(1);
+
+    if (!profile) {
+      const [newProfile] = await db
+        .insert(profiles)
+        .values({
+          userId: user.id,
+          firstName: normalizedEmail.split('@')[0],
+          lastName: '',
+          completionPercentage: 20
+        })
+        .returning();
+      profile = newProfile;
+    }
 
     return {
       user: {
@@ -151,7 +197,9 @@ export class AuthService {
 
     const newRawRefreshToken = generateRandomToken();
     const newRefreshTokenHash = hashToken(newRawRefreshToken);
-    const newExpiresAt = new Date(Date.now() + env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const newExpiresAt = new Date(
+      Date.now() + env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+    );
 
     await db
       .update(sessions)
@@ -234,6 +282,140 @@ export class AuthService {
     return { success: true };
   }
 
+  async verifyOtp({ email, otp, userAgent, ipAddress }) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!user) {
+      throw ApiError.badRequest('Invalid or expired verification code');
+    }
+
+    const otpHash = hashToken(`${normalizedEmail}:${otp.trim()}`);
+
+    const [record] = await db
+      .select()
+      .from(emailVerificationTokens)
+      .where(
+        and(
+          eq(emailVerificationTokens.userId, user.id),
+          eq(emailVerificationTokens.tokenHash, otpHash),
+          gt(emailVerificationTokens.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (!record) {
+      throw ApiError.badRequest('Invalid or expired verification code');
+    }
+
+    await db
+      .update(users)
+      .set({
+        isEmailVerified: true,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, user.id));
+
+    await db
+      .delete(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.userId, user.id));
+
+    let [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
+    if (!profile) {
+      const [newProfile] = await db
+        .insert(profiles)
+        .values({
+          userId: user.id,
+          firstName: normalizedEmail.split('@')[0],
+          lastName: '',
+          completionPercentage: 20
+        })
+        .returning();
+      profile = newProfile;
+    }
+
+    const accessToken = generateAccessToken({
+      sub: user.id,
+      email: user.email
+    });
+
+    const rawRefreshToken = generateRandomToken();
+    const refreshTokenHash = hashToken(rawRefreshToken);
+    const expiresAt = new Date(
+      Date.now() + env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+    );
+
+    await db.insert(sessions).values({
+      userId: user.id,
+      refreshTokenHash,
+      userAgent: userAgent || null,
+      ipAddress: ipAddress || null,
+      isRevoked: false,
+      expiresAt
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        isEmailVerified: true
+      },
+      profile,
+      accessToken,
+      refreshToken: rawRefreshToken
+    };
+  }
+
+  async resendOtp({ email }) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!user) {
+      return {
+        success: true,
+        message: 'If that email is registered, a new code has been sent.'
+      };
+    }
+
+    const otp = randomInt(100000, 1000000).toString();
+    const otpHash = hashToken(`${normalizedEmail}:${otp}`);
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(emailVerificationTokens)
+        .where(eq(emailVerificationTokens.userId, user.id));
+
+      await tx.insert(emailVerificationTokens).values({
+        userId: user.id,
+        tokenHash: otpHash,
+        expiresAt: otpExpiresAt
+      });
+
+      await sendOtpEmail({ to: normalizedEmail, otp });
+    });
+
+    return {
+      success: true,
+      message: 'A new verification code has been sent to your email.'
+    };
+  }
+
   async forgotPassword({ email }) {
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -244,7 +426,10 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
-      return { message: 'If that email is registered, a password reset link has been sent.' };
+      return {
+        message:
+          'If that email is registered, a password reset link has been sent.'
+      };
     }
 
     const rawToken = generateRandomToken();
@@ -259,7 +444,8 @@ export class AuthService {
     });
 
     return {
-      message: 'If that email is registered, a password reset link has been sent.',
+      message:
+        'If that email is registered, a password reset link has been sent.',
       resetToken: rawToken
     };
   }
@@ -280,7 +466,9 @@ export class AuthService {
       .limit(1);
 
     if (!resetRecord) {
-      throw ApiError.badRequest('Invalid, expired or already used password reset token');
+      throw ApiError.badRequest(
+        'Invalid, expired or already used password reset token'
+      );
     }
 
     const newPasswordHash = await hashPassword(newPassword);
@@ -321,11 +509,24 @@ export class AuthService {
       throw ApiError.notFound('User not found');
     }
 
-    const [profile] = await db
+    let [profile] = await db
       .select()
       .from(profiles)
       .where(eq(profiles.userId, userId))
       .limit(1);
+
+    if (!profile) {
+      const [newProfile] = await db
+        .insert(profiles)
+        .values({
+          userId: user.id,
+          firstName: user.email.split('@')[0],
+          lastName: '',
+          completionPercentage: 20
+        })
+        .returning();
+      profile = newProfile;
+    }
 
     return {
       user,
@@ -351,4 +552,3 @@ export class AuthService {
 }
 
 export const authService = new AuthService();
-

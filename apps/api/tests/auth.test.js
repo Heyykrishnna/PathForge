@@ -192,4 +192,47 @@ describe('Auth Module Integration Tests', () => {
 
     expect(loginWithNewPass.status).toBe(200);
   });
+
+  it('verifies user with 6-digit email otp and syncs profile', async () => {
+    const otpUser = {
+      email: `otp_student_${Date.now()}@example.com`,
+      password: 'SecurePassword123!',
+      firstName: 'Alex',
+      lastName: 'Taylor'
+    };
+
+    const regRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send(otpUser);
+
+    expect(regRes.status).toBe(201);
+    expect(regRes.body.data.otp).toBeDefined();
+    expect(regRes.body.data.profile.firstName).toBe('Alex');
+
+    const invalidOtpRes = await request(app)
+      .post('/api/v1/auth/verify-otp')
+      .send({
+        email: otpUser.email,
+        otp: '000000'
+      });
+
+    expect(invalidOtpRes.status).toBe(400);
+
+    const validOtpRes = await request(app)
+      .post('/api/v1/auth/verify-otp')
+      .send({
+        email: otpUser.email,
+        otp: regRes.body.data.otp
+      });
+
+    expect(validOtpRes.status).toBe(200);
+    expect(validOtpRes.body.data.accessToken).toBeDefined();
+    expect(validOtpRes.body.data.profile.firstName).toBe('Alex');
+
+    const resendRes = await request(app)
+      .post('/api/v1/auth/resend-otp')
+      .send({ email: otpUser.email });
+
+    expect(resendRes.status).toBe(200);
+  });
 });

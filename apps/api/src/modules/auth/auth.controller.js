@@ -26,7 +26,11 @@ export class AuthController {
         createSuccessEnvelope({
           user: result.user,
           profile: result.profile,
-          verificationToken: env.NODE_ENV !== 'production' ? result.verificationToken : undefined
+          verificationToken:
+            env.NODE_ENV !== 'production'
+              ? result.verificationToken
+              : undefined,
+          otp: env.NODE_ENV === 'test' ? result.otp : undefined
         })
       );
     } catch (error) {
@@ -58,7 +62,8 @@ export class AuthController {
 
   refresh = async (req, res, next) => {
     try {
-      const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
+      const refreshToken =
+        req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
 
       const result = await this.service.refresh({
         refreshToken,
@@ -80,7 +85,8 @@ export class AuthController {
 
   logout = async (req, res, next) => {
     try {
-      const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
+      const refreshToken =
+        req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
       await this.service.logout({ refreshToken });
 
       res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
@@ -132,6 +138,37 @@ export class AuthController {
     }
   };
 
+  verifyOtp = async (req, res, next) => {
+    try {
+      const result = await this.service.verifyOtp({
+        ...req.body,
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip
+      });
+
+      res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, getCookieOptions());
+
+      return res.status(HTTP_STATUS.OK).json(
+        createSuccessEnvelope({
+          user: result.user,
+          profile: result.profile,
+          accessToken: result.accessToken
+        })
+      );
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  resendOtp = async (req, res, next) => {
+    try {
+      const result = await this.service.resendOtp(req.body);
+      return res.status(HTTP_STATUS.OK).json(createSuccessEnvelope(result));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   forgotPassword = async (req, res, next) => {
     try {
       const result = await this.service.forgotPassword(req.body);
@@ -166,4 +203,3 @@ export class AuthController {
 }
 
 export const authController = new AuthController();
-
