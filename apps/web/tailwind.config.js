@@ -4,6 +4,12 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        heading: ['Manrope', 'system-ui', 'sans-serif'],
+        poppins: ['Poppins', 'sans-serif'],
+        manrope: ['Manrope', 'sans-serif']
+      },
       colors: {
         brand: {
           50: '#f0fdf4',
@@ -17,4 +23,3 @@ export default {
   },
   plugins: []
 };
-
