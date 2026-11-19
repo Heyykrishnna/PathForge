@@ -22,7 +22,9 @@ describe('Frontend API Client and State Management', () => {
   });
 
   it('creates ApiError with status, code, and details', () => {
-    const error = new ApiError(400, 'VALIDATION_ERROR', 'Invalid inputs', [{ field: 'email', message: 'Invalid email' }]);
+    const error = new ApiError(400, 'VALIDATION_ERROR', 'Invalid inputs', [
+      { field: 'email', message: 'Invalid email' }
+    ]);
     expect(error.status).toBe(400);
     expect(error.code).toBe('VALIDATION_ERROR');
     expect(error.message).toBe('Invalid inputs');
@@ -44,7 +46,9 @@ describe('Frontend API Client and State Management', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [calledUrl, calledOptions] = mockFetch.mock.calls[0];
     expect(calledUrl).toContain('/health');
-    expect(calledOptions.headers.Authorization).toBe('Bearer active-student-token');
+    expect(calledOptions.headers.Authorization).toBe(
+      'Bearer active-student-token'
+    );
     expect(calledOptions.credentials).toBe('include');
   });
 
@@ -63,7 +67,9 @@ describe('Frontend API Client and State Management', () => {
     });
     global.fetch = mockFetch;
 
-    await expect(request('/applications', { method: 'POST' })).rejects.toThrowError(
+    await expect(
+      request('/applications', { method: 'POST' })
+    ).rejects.toThrowError(
       'An active application for this internship already exists'
     );
   });
@@ -87,5 +93,30 @@ describe('Frontend API Client and State Management', () => {
     expect(typeof apiClient.applications.update).toBe('function');
     expect(typeof apiClient.dashboard.getOverview).toBe('function');
   });
-});
 
+  it('submits the GitHub authorization response with the signed-in session', async () => {
+    setAccessToken('student-token');
+    const fetchCallback = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { username: 'octocat' } })
+    });
+
+    await expect(
+      apiClient.github.completeConnection({
+        code: 'provider-code',
+        state: 'oauth-state'
+      })
+    ).resolves.toEqual({ data: { username: 'octocat' } });
+
+    expect(fetchCallback).toHaveBeenCalledWith(
+      expect.stringMatching(/\/github\/callback$/),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ code: 'provider-code', state: 'oauth-state' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer student-token'
+        })
+      })
+    );
+  });
+});

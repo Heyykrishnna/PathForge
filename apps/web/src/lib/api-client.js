@@ -160,6 +160,11 @@ export const apiClient = {
 
   github: {
     connect: () => request('/github/connect'),
+    completeConnection: ({ code, state }) =>
+      request('/github/callback', {
+        method: 'POST',
+        body: JSON.stringify({ code, state })
+      }),
     getAccount: () => request('/github/account'),
     sync: () => request('/github/sync', { method: 'POST' }),
     disconnect: () => request('/github/connection', { method: 'DELETE' })

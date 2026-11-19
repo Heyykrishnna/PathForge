@@ -1,13 +1,47 @@
 import { eq, and, gt, desc } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { githubAccounts, repositories, githubOauthStates, candidateEvidence } from '../../db/schema/index.js';
+import {
+  githubAccounts,
+  repositories,
+  githubOauthStates,
+  candidateEvidence
+} from '../../db/schema/index.js';
 import { ApiError } from '../../utils/api-error.js';
 import { generateRandomToken } from '../../utils/token.js';
 import { encrypt, decrypt } from '../../utils/encryption.js';
 import { env } from '../../config/env.js';
 
+const scope = 'read:user';
+
+async function fetchGithub(url, options) {
+  const unavailable =
+    'GitHub could not complete the request. Please try again.';
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(10000)
+    });
+  } catch {
+    throw ApiError.serviceUnavailable(unavailable);
+  }
+  if (!response.ok) throw ApiError.serviceUnavailable(unavailable);
+  return response.json().catch(() => {
+    throw ApiError.serviceUnavailable(unavailable);
+  });
+}
+
 export class GitHubService {
   async generateConnectUrl(userId) {
+    if (
+      !env.GITHUB_CLIENT_ID ||
+      !env.GITHUB_CLIENT_SECRET ||
+      env.GITHUB_CLIENT_ID === 'dev_github_client_id' ||
+      env.GITHUB_CLIENT_SECRET === 'dev_github_client_secret'
+    ) {
+      throw ApiError.serviceUnavailable('GitHub OAuth is not configured.');
+    }
+
     const state = generateRandomToken();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -20,7 +54,7 @@ export class GitHubService {
     const params = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
       redirect_uri: env.GITHUB_CALLBACK_URL,
-      scope: 'read:user,repo',
+      scope,
       state
     });
 
@@ -31,13 +65,16 @@ export class GitHubService {
   }
 
   async handleCallback(userId, { code, state }) {
-    if (!state) {
+    if (typeof state !== 'string' || !state) {
       throw ApiError.badRequest('OAuth state parameter is required');
     }
 
+    if (typeof code !== 'string' || !code) {
+      throw ApiError.badRequest('GitHub authorization code is required');
+    }
+
     const [stateRecord] = await db
-      .select()
-      .from(githubOauthStates)
+      .delete(githubOauthStates)
       .where(
         and(
           eq(githubOauthStates.userId, userId),
@@ -45,24 +82,15 @@ export class GitHubService {
           gt(githubOauthStates.expiresAt, new Date())
         )
       )
-      .limit(1);
+      .returning({ id: githubOauthStates.id });
 
     if (!stateRecord) {
       throw ApiError.badRequest('Invalid, expired or unauthorized OAuth state');
     }
 
-    await db.delete(githubOauthStates).where(eq(githubOauthStates.id, stateRecord.id));
-
-    let accessToken = `mock_github_token_${code}`;
-    let githubProfile = {
-      id: 1234567,
-      login: 'dev-student',
-      html_url: 'https://github.com/dev-student',
-      avatar_url: 'https://avatars.githubusercontent.com/u/1234567'
-    };
-
-    if (env.NODE_ENV === 'production' && !code.startsWith('mock_code_')) {
-      const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+    const token = await fetchGithub(
+      'https://github.com/login/oauth/access_token',
+      {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -71,23 +99,33 @@ export class GitHubService {
         body: JSON.stringify({
           client_id: env.GITHUB_CLIENT_ID,
           client_secret: env.GITHUB_CLIENT_SECRET,
+          redirect_uri: env.GITHUB_CALLBACK_URL,
           code
         })
-      });
-
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        throw ApiError.badRequest(tokenData.error_description || 'Failed to exchange GitHub authorization code');
       }
-      accessToken = tokenData.access_token;
+    );
 
-      const profileRes = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'User-Agent': 'PathForge-App'
-        }
-      });
-      githubProfile = await profileRes.json();
+    const accessToken = token?.access_token;
+    if (typeof accessToken !== 'string' || !accessToken) {
+      throw ApiError.badRequest(
+        'GitHub rejected the authorization code. Start the connection again.'
+      );
+    }
+
+    const githubProfile = await fetchGithub('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'User-Agent': 'PathForge-App'
+      }
+    });
+    if (
+      !Number.isSafeInteger(githubProfile?.id) ||
+      typeof githubProfile.login !== 'string' ||
+      !/^[a-z\d][a-z\d-]{0,38}$/i.test(githubProfile.login)
+    ) {
+      throw ApiError.serviceUnavailable(
+        'GitHub returned an invalid account profile.'
+      );
     }
 
     const encryptedToken = encrypt(accessToken);
@@ -105,9 +143,10 @@ export class GitHubService {
         .set({
           githubUserId: String(githubProfile.id),
           username: githubProfile.login,
-          profileUrl: githubProfile.html_url,
+          profileUrl: `https://github.com/${githubProfile.login}`,
           avatarUrl: githubProfile.avatar_url,
           encryptedAccessToken: encryptedToken,
+          scope,
           syncStatus: 'idle',
           updatedAt: new Date()
         })
@@ -120,10 +159,10 @@ export class GitHubService {
           userId,
           githubUserId: String(githubProfile.id),
           username: githubProfile.login,
-          profileUrl: githubProfile.html_url,
+          profileUrl: `https://github.com/${githubProfile.login}`,
           avatarUrl: githubProfile.avatar_url,
           encryptedAccessToken: encryptedToken,
-          scope: 'read:user,repo',
+          scope,
           syncStatus: 'idle'
         })
         .returning();
@@ -139,7 +178,7 @@ export class GitHubService {
     };
   }
 
-  async syncRepositories(userId, customMockRepos = null) {
+  async syncRepositories(userId) {
     const [account] = await db
       .select()
       .from(githubAccounts)
@@ -147,7 +186,9 @@ export class GitHubService {
       .limit(1);
 
     if (!account) {
-      throw ApiError.notFound('No connected GitHub account found for this user');
+      throw ApiError.notFound(
+        'No connected GitHub account found for this user'
+      );
     }
 
     await db
@@ -155,60 +196,34 @@ export class GitHubService {
       .set({ syncStatus: 'syncing', updatedAt: new Date() })
       .where(eq(githubAccounts.id, account.id));
 
-    let fetchedRepos = customMockRepos;
-
-    if (!fetchedRepos) {
-      if (env.NODE_ENV === 'production' && !account.encryptedAccessToken.includes('mock_github_token')) {
-        const rawToken = decrypt(account.encryptedAccessToken);
-        const res = await fetch('https://api.github.com/user/repos?sort=pushed&per_page=30', {
+    let fetchedRepos;
+    try {
+      const accessToken = decrypt(account.encryptedAccessToken);
+      fetchedRepos = await fetchGithub(
+        'https://api.github.com/user/repos?visibility=public&affiliation=owner&sort=pushed&per_page=30',
+        {
           headers: {
-            Authorization: `Bearer ${rawToken}`,
+            Authorization: `Bearer ${accessToken}`,
             'User-Agent': 'PathForge-App'
           }
-        });
-
-        if (!res.ok) {
-          await db
-            .update(githubAccounts)
-            .set({ syncStatus: 'failed', updatedAt: new Date() })
-            .where(eq(githubAccounts.id, account.id));
-          throw ApiError.serviceUnavailable('Failed to retrieve repositories from GitHub API');
         }
-
-        fetchedRepos = await res.json();
-      } else {
-        fetchedRepos = [
-          {
-            id: 101,
-            name: 'distributed-kv-store',
-            full_name: `${account.username}/distributed-kv-store`,
-            description: 'A Raft-based distributed key-value store built in Go',
-            private: false,
-            language: 'Go',
-            languages_url: '',
-            stargazers_count: 14,
-            forks_count: 3,
-            default_branch: 'main',
-            pushed_at: new Date().toISOString()
-          },
-          {
-            id: 102,
-            name: 'react-query-dashboard',
-            full_name: `${account.username}/react-query-dashboard`,
-            description: 'Modern real-time analytics dashboard in TypeScript and React',
-            private: false,
-            language: 'TypeScript',
-            languages_url: '',
-            stargazers_count: 28,
-            forks_count: 5,
-            default_branch: 'main',
-            pushed_at: new Date().toISOString()
-          }
-        ];
+      );
+      if (!Array.isArray(fetchedRepos)) {
+        throw ApiError.serviceUnavailable(
+          'GitHub returned an invalid repository list.'
+        );
       }
+    } catch (error) {
+      await db
+        .update(githubAccounts)
+        .set({ syncStatus: 'failed', updatedAt: new Date() })
+        .where(eq(githubAccounts.id, account.id));
+      throw error;
     }
 
-    await db.delete(repositories).where(eq(repositories.githubAccountId, account.id));
+    await db
+      .delete(repositories)
+      .where(eq(repositories.githubAccountId, account.id));
 
     const savedRepos = [];
     const discoveredSkills = new Set();
@@ -329,4 +344,3 @@ export class GitHubService {
 }
 
 export const githubService = new GitHubService();
-

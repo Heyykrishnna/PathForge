@@ -83,6 +83,22 @@ pnpm dev
 - Web application: [http://localhost:3000](http://localhost:3000)
 - API health check: [http://localhost:4000/api/v1/health](http://localhost:4000/api/v1/health)
 
+### Registration email delivery
+
+Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` with your mail provider's settings. `SMTP_FROM` must use a sender address permitted by that provider. The example's `localhost` host requires a local SMTP server; replace it to deliver to real inboxes.
+
+For port 587, set `SMTP_SECURE=false` to use STARTTLS. Port 465 uses implicit TLS. Credentials stay in environment variables or untracked `.env` files.
+
+The API loads `.env` from the repository root regardless of its working directory. An `apps/api/.env` file overrides root file values, and explicitly supplied process environment variables take precedence over both files. Restart the API after changing environment files.
+
+Registration advances to verification only after the SMTP server accepts the email. Delivery failures return HTTP 503 with a retry message and roll back the new account so registration can be retried. A failed resend preserves the previous code. Codes expire after 10 minutes and are never logged or included in normal registration responses. SMTP acceptance does not guarantee inbox delivery; check the provider's delivery events and the recipient's spam folder if an accepted email does not arrive.
+
+### GitHub connection
+
+Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` for your GitHub OAuth app. Register the API callback URL from `GITHUB_CALLBACK_URL` in the OAuth app settings. The local callback is `http://localhost:4000/api/v1/github/callback`. Set `CORS_ORIGIN` to the web app origin so the callback can return the user to their profile.
+
+Connect GitHub from the profile and approve access on GitHub. PathForge reads the account profile and syncs up to 30 recently updated public repositories owned by that account.
+
 ## Available Scripts
 
 | Command            | Description                                      |

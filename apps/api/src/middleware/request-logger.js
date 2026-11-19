@@ -1,5 +1,6 @@
 import pinoHttp from 'pino-http';
 import { logger } from '../utils/logger.js';
+import { env } from '../config/env.js';
 
 export const requestLogger = pinoHttp({
   logger,
@@ -9,7 +10,12 @@ export const requestLogger = pinoHttp({
     return 'info';
   },
   autoLogging: {
-    ignore: (req) => req.url === '/api/v1/health'
+    ignore: (req) => {
+      const path = req.url.split('?')[0];
+      return (
+        path === `${env.API_PREFIX}/health` ||
+        path === `${env.API_PREFIX}/github/callback`
+      );
+    }
   }
 });
-
