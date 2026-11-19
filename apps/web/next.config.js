@@ -1,6 +1,6 @@
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  transpilePackages: ['ogl']
 };
 
 export default nextConfig;
-
