@@ -16,7 +16,7 @@ const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().default('dev_github_client_id'),
   GITHUB_CLIENT_SECRET: z.string().default('dev_github_client_secret'),
   GITHUB_CALLBACK_URL: z.string().default('http://localhost:3000/github/callback'),
-  GITHUB_TOKEN_ENCRYPTION_KEY: z.string().min(32).default('01234567890123456789012345678901'),
+  GITHUB_TOKEN_ENCRYPTION_KEY: z.coerce.string().min(32).default('0123456789abcdef0123456789abcdef'),
   UPLOAD_DIR: z.string().default('uploads')
 });
 
