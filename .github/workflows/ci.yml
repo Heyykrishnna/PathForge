@@ -9,6 +9,32 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pathforge_dev
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/pathforge_dev
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: dev_super_secret_jwt_access_key_min_32_chars_pathforge
+      JWT_REFRESH_SECRET: dev_super_secret_jwt_refresh_key_min_32_chars_pathforge
+      COOKIE_SECRET: dev_cookie_signing_secret_min_32_chars_pathforge
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      GITHUB_TOKEN_ENCRYPTION_KEY: 01234567890123456789012345678901
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +52,12 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+      - name: Run database migrations
+        run: pnpm db:migrate
+
+      - name: Seed database
+        run: pnpm db:seed
 
       - name: Test
         run: pnpm test
