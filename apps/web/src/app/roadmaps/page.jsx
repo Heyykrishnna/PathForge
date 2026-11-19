@@ -420,7 +420,7 @@ export default function RoadmapsPage() {
                                       value={noteText}
                                       onChange={(e) => setNoteText(e.target.value)}
                                       placeholder="Add project links, PRs, key learnings, or verification evidence..."
-                                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 h-20"
+                                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700 focus:border-zinc-700 h-20"
                                     />
                                     <div className="flex items-center gap-2">
                                       <button

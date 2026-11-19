@@ -332,7 +332,7 @@ export default function ApplicationsPage() {
                         value={notesDraft}
                         onChange={(e) => setNotesDraft(e.target.value)}
                         placeholder="Add recruiter details, interview rounds, or follow-up action items..."
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-purple-500 h-20"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700 h-20"
                       />
                       <div className="flex items-center gap-2">
                         <button
@@ -382,7 +382,7 @@ export default function ApplicationsPage() {
                   <select
                     value={app.status}
                     onChange={(e) => updateStatusMutation.mutate({ id: app.id, status: e.target.value })}
-                    className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -441,7 +441,7 @@ export default function ApplicationsPage() {
                   value={selectedInternshipId}
                   onChange={(e) => setSelectedInternshipId(e.target.value)}
                   required
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                 >
                   <option value="">Select an internship...</option>
                   {internshipsData?.map((item) => (
@@ -459,7 +459,7 @@ export default function ApplicationsPage() {
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -477,7 +477,7 @@ export default function ApplicationsPage() {
                   type="date"
                   value={newDeadline}
                   onChange={(e) => setNewDeadline(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                 />
               </div>
 
@@ -489,7 +489,7 @@ export default function ApplicationsPage() {
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   placeholder="E.g. Connected with engineering manager at university hackathon..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-purple-500 h-20"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700 h-20"
                 />
               </div>
 
