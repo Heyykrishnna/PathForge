@@ -1,20 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Check, AlertCircle, Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import {
+  Eye,
+  EyeOff,
+  Check,
+  AlertCircle,
+  Loader2,
+  ArrowLeft,
+  RefreshCw
+} from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
-import { Dither } from './ui/dither';
+import { OtpInput } from './ui/otp-input';
+
+const Dither = dynamic(() => import('./ui/dither').then((mod) => mod.Dither), {
+  ssr: false
+});
 
 export function AuthCard({ initialMode = 'signup' }) {
   const router = useRouter();
-  const { login, register } = useAuth();
+  const { login, register, verifyOtp, resendOtp } = useAuth();
 
   const [mode, setMode] = useState(initialMode);
+  const [step, setStep] = useState('form');
+  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -23,15 +39,25 @@ export function AuthCard({ initialMode = 'signup' }) {
     password: ''
   });
 
+  useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   const handleChange = (e) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
     if (error) setError(null);
   };
 
-  const handleSubmit = async (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
@@ -45,14 +71,8 @@ export function AuthCard({ initialMode = 'signup' }) {
           firstName: formData.firstName,
           lastName: formData.lastName
         });
-        await login({
-          email: formData.email,
-          password: formData.password
-        });
-        setSuccessMessage('Account created successfully! Redirecting...');
-        setTimeout(() => {
-          router.push('/profile');
-        }, 1200);
+        setStep('otp');
+        setResendCooldown(60);
       } else {
         await login({
           email: formData.email,
@@ -61,25 +81,70 @@ export function AuthCard({ initialMode = 'signup' }) {
         setSuccessMessage('Logged in successfully! Redirecting...');
         setTimeout(() => {
           router.push('/profile');
-        }, 1000);
+        }, 800);
       }
     } catch (err) {
-      setError(err.message || 'Authentication failed. Please check your details.');
+      setError(
+        err.message || 'Authentication failed. Please check your details.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (codeToVerify) => {
+    const code = codeToVerify || otp;
+    if (!code || code.length < 6) {
+      setError('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await verifyOtp({
+        email: formData.email,
+        otp: code
+      });
+      setSuccessMessage(
+        'Email verified successfully! Setting up your profile...'
+      );
+      setTimeout(() => {
+        router.push('/profile');
+      }, 1000);
+    } catch (err) {
+      setError(err.message || 'Invalid or expired verification code.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || isLoading) return;
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await resendOtp({ email: formData.email });
+      setResendCooldown(60);
+      setSuccessMessage('A new verification code has been sent to your email.');
+    } catch (err) {
+      setError(err.message || 'Failed to resend verification code.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full bg-black text-white p-2 sm:p-4 lg:p-6 flex items-center justify-center font-sans">
-      <div className="w-full h-full min-h-[calc(100vh-1rem)] lg:min-h-[calc(100vh-3rem)] rounded-[28px] lg:rounded-[36px] bg-black border border-zinc-900 shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-        
-        <div className="lg:col-span-6 p-6 sm:p-8 lg:p-12 m-2 sm:m-3 lg:m-4 rounded-[24px] lg:rounded-[30px] border border-zinc-800/60 relative overflow-hidden flex flex-col justify-between bg-[#080512] min-h-[560px] lg:min-h-full">
+    <div className="flex min-h-svh w-full items-center justify-center bg-black p-2 font-sans text-white sm:p-4 lg:p-6">
+      <div className="grid min-h-[calc(100svh-1rem)] w-full grid-cols-1 overflow-hidden rounded-[28px] border border-zinc-900 bg-black shadow-2xl sm:min-h-[calc(100svh-2rem)] lg:min-h-[calc(100svh-3rem)] lg:grid-cols-2 lg:rounded-[36px]">
+        <div className="relative m-2 grid min-h-[560px] min-w-0 grid-rows-[1fr_auto_1fr] gap-8 overflow-hidden rounded-[24px] border border-zinc-800/60 bg-[#080512] p-6 sm:m-3 sm:p-8 lg:m-4 lg:min-h-0 lg:rounded-[30px] lg:p-12">
           <Dither
-            className="absolute inset-0 pointer-events-none opacity-85"
-            color1="#FF9FFC"
-            color2="#5227FF"
-            color3="#140628"
+            className="pointer-events-none absolute inset-0 opacity-90"
+            color1="#9d4edd"
+            color2="#3a0ca3"
+            color3="#0a0319"
             timeSpeed={0.2}
             warpStrength={1.2}
             noiseScale={2.5}
@@ -87,273 +152,363 @@ export function AuthCard({ initialMode = 'signup' }) {
             contrast={1.4}
             zoom={0.85}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/50 pointer-events-none" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/50" />
 
-          <div className="relative z-10 flex items-center gap-2.5">
-            <div className="h-6 w-6 rounded-full border-2 border-white flex items-center justify-center">
+          <div className="relative z-10 flex items-center gap-2.5 self-start">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white">
               <div className="h-2 w-2 rounded-full bg-white" />
             </div>
-            <span className="font-heading font-semibold text-lg tracking-tight text-white">PathForge</span>
+            <span className="font-heading text-lg font-semibold tracking-tight text-white">
+              PathForge
+            </span>
           </div>
 
-          <div className="relative z-10 my-auto py-8 sm:py-12 flex flex-col items-center text-center">
-            <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-3">
-              {mode === 'signup' ? 'Get Started with Us' : 'Welcome Back'}
+          <div className="relative z-10 flex w-full max-w-sm flex-col items-center justify-self-center text-center">
+            <h2 className="mb-3 font-heading text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              {step === 'otp'
+                ? 'Verify Email'
+                : mode === 'signup'
+                  ? 'Get Started with Us'
+                  : 'Welcome Back'}
             </h2>
-            <p className="text-zinc-300 text-sm max-w-sm mb-8 sm:mb-10 font-sans">
-              {mode === 'signup'
-                ? 'Complete these easy steps to register your account.'
-                : 'Sign into your account to access your personalized career roadmaps.'}
+            <p className="mb-8 max-w-sm font-sans text-sm text-zinc-300 sm:mb-10">
+              {step === 'otp'
+                ? 'Enter the 6-digit code sent to your email address to continue.'
+                : mode === 'signup'
+                  ? 'Complete these easy steps to register your account.'
+                  : 'Sign into your account to access your personalized career roadmaps.'}
             </p>
 
             <div className="w-full max-w-sm space-y-3 text-left">
-              <div className={`p-3.5 sm:p-4 rounded-2xl flex items-center gap-3.5 transition-all backdrop-blur-md ${
-                mode === 'signup'
-                  ? 'bg-white text-black shadow-lg shadow-white/5 font-semibold'
-                  : 'bg-zinc-900/80 border border-zinc-800/80 text-zinc-200'
-              }`}>
-                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                  mode === 'signup' ? 'bg-black text-white' : 'bg-zinc-800 text-zinc-300'
-                }`}>
-                  1
+              <div
+                className={`flex items-center gap-3.5 rounded-2xl p-3.5 backdrop-blur-md transition-all sm:p-4 ${
+                  step === 'form'
+                    ? 'border border-white bg-white font-semibold text-black shadow-lg shadow-white/5'
+                    : 'border border-zinc-800/80 bg-zinc-900/80 text-zinc-200'
+                }`}
+              >
+                <div
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    step === 'form'
+                      ? 'bg-black text-white'
+                      : step === 'otp'
+                        ? 'bg-emerald-500 text-black'
+                        : 'bg-zinc-800 text-zinc-300'
+                  }`}
+                >
+                  {step === 'otp' ? '✓' : '1'}
                 </div>
                 <span className="text-sm font-medium">
-                  {mode === 'signup' ? 'Sign up your account' : 'Sign into your account'}
+                  {mode === 'signup'
+                    ? 'Sign up your account'
+                    : 'Sign into your account'}
                 </span>
               </div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md flex items-center gap-3.5 text-zinc-400">
-                <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-400 shrink-0">
+              <div
+                className={`flex items-center gap-3.5 rounded-2xl border p-3.5 backdrop-blur-md transition-all sm:p-4 ${
+                  step === 'otp'
+                    ? 'border-white bg-white font-semibold text-black shadow-lg shadow-white/5'
+                    : 'border-zinc-800/80 bg-zinc-900/60 text-zinc-400'
+                }`}
+              >
+                <div
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    step === 'otp'
+                      ? 'bg-black text-white'
+                      : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                >
                   2
                 </div>
-                <span className="text-sm font-medium">Set up your profile</span>
+                <span className="text-sm font-medium">
+                  {step === 'otp' ? 'Verify your email' : 'Set up your profile'}
+                </span>
               </div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md flex items-center gap-3.5 text-zinc-400">
-                <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium text-zinc-400 shrink-0">
+              <div className="flex items-center gap-3.5 rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-3.5 text-zinc-400 backdrop-blur-md sm:p-4">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-medium text-zinc-400">
                   3
                 </div>
-                <span className="text-sm font-medium">Discover internships & roadmaps</span>
+                <span className="text-sm font-medium">
+                  Discover internships & roadmaps
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="relative z-10 text-xs text-zinc-400 text-center sm:text-left">
+          <div className="relative z-10 self-end text-center text-xs leading-relaxed text-zinc-400">
             Career intelligence & evidence-based internship matching
           </div>
         </div>
 
-        <div className="lg:col-span-6 p-6 sm:p-10 lg:p-16 flex flex-col justify-center bg-black">
-          <div className="w-full max-w-md mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
-                {mode === 'signup' ? 'Sign Up Account' : 'Log In to Account'}
-              </h1>
-              <p className="text-xs sm:text-sm text-zinc-400">
-                {mode === 'signup'
-                  ? 'Enter your personal data to create your account.'
-                  : 'Enter your credentials to access your account.'}
-              </p>
-            </div>
+        <div className="flex min-w-0 flex-col justify-center bg-black p-6 sm:p-10 lg:p-16">
+          <div className="mx-auto w-full max-w-md">
+            {step === 'otp' ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('form');
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="mb-6 inline-flex items-center gap-1.5 text-xs text-zinc-400 transition-colors hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to edit details
+                </button>
 
-            {mode === 'signup' && (
-              <>
-                <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="mb-8 text-center">
+                  <h1 className="mb-2 font-heading text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    Enter Verification Code
+                  </h1>
+                  <p className="text-xs text-zinc-400 sm:text-sm">
+                    We sent a 6-digit numeric code to{' '}
+                    <span className="font-medium text-white">
+                      {formData.email}
+                    </span>
+                    .
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-rose-900/60 bg-rose-950/40 p-3 text-xs text-rose-300">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-emerald-900/60 bg-emerald-950/40 p-3 text-xs text-emerald-300">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                <div className="my-8 flex justify-center">
+                  <OtpInput
+                    length={6}
+                    value={otp}
+                    onChange={(val) => {
+                      setOtp(val);
+                      if (error) setError(null);
+                    }}
+                    onComplete={(code) => handleVerifyOtp(code)}
+                    autoFocus
+                    disabled={isLoading}
+                    status={error ? 'error' : isLoading ? 'loading' : 'idle'}
+                    size="md"
+                  />
+                </div>
+
+                <div className="space-y-4">
                   <button
                     type="button"
-                    className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 text-xs font-medium text-zinc-200 transition-colors"
+                    onClick={() => handleVerifyOtp()}
+                    disabled={isLoading || otp.length < 6}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-md transition-all hover:bg-zinc-200 disabled:opacity-50"
                   >
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    Google
+                    {isLoading && (
+                      <Loader2 className="h-4 w-4 animate-spin text-black" />
+                    )}
+                    Verify & Continue
                   </button>
 
-                  <button
-                    type="button"
-                    className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 text-xs font-medium text-zinc-200 transition-colors"
-                  >
-                    <svg className="h-4 w-4 shrink-0 fill-current text-white" viewBox="0 0 24 24">
-                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                    </svg>
-                    Github
-                  </button>
-                </div>
-
-                <div className="relative flex items-center justify-center mb-6">
-                  <div className="border-t border-zinc-800 w-full" />
-                  <span className="bg-black px-3 text-zinc-500 text-xs uppercase tracking-wider absolute">
-                    Or
-                  </span>
-                </div>
-              </>
-            )}
-
-            {error && (
-              <div className="mb-5 p-3 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs flex items-start gap-2.5">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="mb-5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 text-xs flex items-start gap-2.5">
-                <Check className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
-                <span>{successMessage}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'signup' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      required
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      placeholder="eg. John"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700/60 transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      required
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      placeholder="eg. Francisco"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700/60 transition-colors"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="eg. johnfrans@gmail.com"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700/60 transition-colors"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-zinc-300">
-                    Password
-                  </label>
-                  {mode === 'login' && (
+                  <div className="flex items-center justify-between pt-2 text-xs text-zinc-400">
+                    <span>Didn&apos;t receive the email?</span>
                     <button
                       type="button"
-                      onClick={() => alert('Password reset link sent to your registered email.')}
-                      className="text-xs text-zinc-400 hover:text-white transition-colors"
+                      onClick={handleResendOtp}
+                      disabled={resendCooldown > 0 || isLoading}
+                      className="inline-flex items-center gap-1 font-medium text-white hover:underline disabled:opacity-40 disabled:hover:no-underline"
                     >
-                      Forgot password?
+                      <RefreshCw
+                        className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`}
+                      />
+                      {resendCooldown > 0
+                        ? `Resend code in ${resendCooldown}s`
+                        : 'Resend code'}
                     </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="mb-8 text-center">
+                  <h1 className="mb-2 font-heading text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    {mode === 'signup'
+                      ? 'Sign Up Account'
+                      : 'Log In to Account'}
+                  </h1>
+                  <p className="text-xs text-zinc-400 sm:text-sm">
+                    {mode === 'signup'
+                      ? 'Enter your personal data to create your account.'
+                      : 'Enter your credentials to access your account.'}
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-rose-900/60 bg-rose-950/40 p-3 text-xs text-rose-300">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-emerald-900/60 bg-emerald-950/40 p-3 text-xs text-emerald-300">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  {mode === 'signup' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                          First Name
+                        </label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          required
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          placeholder="eg. John"
+                          className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 transition-colors focus:border-zinc-500 focus:outline-none focus:ring-0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                          Last Name
+                        </label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          required
+                          value={formData.lastName}
+                          onChange={handleChange}
+                          placeholder="eg. Francisco"
+                          className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 transition-colors focus:border-zinc-500 focus:outline-none focus:ring-0"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="eg. johnfrans@gmail.com"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 transition-colors focus:border-zinc-500 focus:outline-none focus:ring-0"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="block text-xs font-medium text-zinc-300">
+                        Password
+                      </label>
+                      {mode === 'login' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            alert(
+                              'Password reset link sent to your registered email.'
+                            )
+                          }
+                          className="text-xs text-zinc-400 transition-colors hover:text-white"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        name="password"
+                        required
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Enter your password"
+                        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-500 transition-colors focus:border-zinc-500 focus:outline-none focus:ring-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-zinc-300"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {mode === 'signup' && (
+                      <p className="mt-1.5 text-xs text-zinc-500">
+                        Must be at least 8 characters.
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-md transition-all hover:bg-zinc-200 disabled:opacity-50"
+                  >
+                    {isLoading && (
+                      <Loader2 className="h-4 w-4 animate-spin text-black" />
+                    )}
+                    {mode === 'signup' ? 'Sign Up' : 'Log In'}
+                  </button>
+                </form>
+
+                <div className="mt-8 text-center text-xs text-zinc-400">
+                  {mode === 'signup' ? (
+                    <>
+                      Already have an account?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setError(null);
+                          setSuccessMessage(null);
+                        }}
+                        className="ml-1 font-medium text-white hover:underline"
+                      >
+                        Log in
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Don&apos;t have an account?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('signup');
+                          setError(null);
+                          setSuccessMessage(null);
+                        }}
+                        className="ml-1 font-medium text-white hover:underline"
+                      >
+                        Sign up
+                      </button>
+                    </>
                   )}
                 </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Enter your password"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700/60 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {mode === 'signup' && (
-                  <p className="text-zinc-500 text-xs mt-1.5">
-                    Must be at least 8 characters.
-                  </p>
-                )}
               </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-md mt-6 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isLoading && <Loader2 className="h-4 w-4 animate-spin text-black" />}
-                {mode === 'signup' ? 'Sign Up' : 'Log In'}
-              </button>
-            </form>
-
-            <div className="mt-8 text-center text-xs text-zinc-400">
-              {mode === 'signup' ? (
-                <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('login');
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className="text-white font-medium hover:underline ml-1"
-                  >
-                    Log in
-                  </button>
-                </>
-              ) : (
-                <>
-                  Don&apos;t have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('signup');
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className="text-white font-medium hover:underline ml-1"
-                  >
-                    Sign up
-                  </button>
-                </>
-              )}
-            </div>
+            )}
           </div>
         </div>
-
       </div>
     </div>
   );

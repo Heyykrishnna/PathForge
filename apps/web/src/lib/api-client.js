@@ -1,4 +1,5 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 let currentAccessToken = null;
 
@@ -47,7 +48,12 @@ export async function request(path, options = {}) {
       message: `Request failed with status ${response.status}`,
       details: []
     };
-    throw new ApiError(response.status, errorData.code, errorData.message, errorData.details);
+    throw new ApiError(
+      response.status,
+      errorData.code,
+      errorData.message,
+      errorData.details
+    );
   }
 
   return payload;
@@ -57,9 +63,13 @@ export const apiClient = {
   getHealth: () => request('/health'),
 
   auth: {
-    register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+    register: (data) =>
+      request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     login: async (data) => {
-      const res = await request('/auth/login', { method: 'POST', body: JSON.stringify(data) });
+      const res = await request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
       if (res.data?.accessToken) {
         setAccessToken(res.data.accessToken);
       }
@@ -80,28 +90,72 @@ export const apiClient = {
       return res;
     },
     me: () => request('/auth/me'),
-    verifyEmail: (token) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
-    forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    verifyOtp: async (data) => {
+      const res = await request('/auth/verify-otp', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      if (res.data?.accessToken) {
+        setAccessToken(res.data.accessToken);
+      }
+      return res;
+    },
+    resendOtp: (data) =>
+      request('/auth/resend-otp', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+    verifyEmail: (token) =>
+      request('/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      }),
+    forgotPassword: (email) =>
+      request('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      }),
     resetPassword: (token, newPassword) =>
-      request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) })
+      request('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, newPassword })
+      })
   },
 
   profile: {
     get: () => request('/profile'),
-    update: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
-    addEducation: (data) => request('/profile/educations', { method: 'POST', body: JSON.stringify(data) }),
+    update: (data) =>
+      request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+    addEducation: (data) =>
+      request('/profile/educations', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
     updateEducation: (id, data) =>
-      request(`/profile/educations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    deleteEducation: (id) => request(`/profile/educations/${id}`, { method: 'DELETE' }),
-    syncSkills: (skills) => request('/profile/skills', { method: 'POST', body: JSON.stringify({ skills }) })
+      request(`/profile/educations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
+    deleteEducation: (id) =>
+      request(`/profile/educations/${id}`, { method: 'DELETE' }),
+    syncSkills: (skills) =>
+      request('/profile/skills', {
+        method: 'POST',
+        body: JSON.stringify({ skills })
+      })
   },
 
   resumes: {
-    upload: (formData) => request('/resumes/upload', { method: 'POST', body: formData }),
+    upload: (formData) =>
+      request('/resumes/upload', { method: 'POST', body: formData }),
     list: () => request('/resumes'),
     get: (id) => request(`/resumes/${id}`),
     analyze: (id) => request(`/resumes/${id}/analyze`, { method: 'POST' }),
-    confirm: (id, data) => request(`/resumes/${id}/confirm`, { method: 'POST', body: JSON.stringify(data) })
+    confirm: (id, data) =>
+      request(`/resumes/${id}/confirm`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      })
   },
 
   github: {
@@ -113,7 +167,11 @@ export const apiClient = {
 
   evidence: {
     list: () => request('/evidence'),
-    confirm: (id, data) => request(`/evidence/${id}/confirm`, { method: 'PATCH', body: JSON.stringify(data) }),
+    confirm: (id, data) =>
+      request(`/evidence/${id}/confirm`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
     delete: (id) => request(`/evidence/${id}`, { method: 'DELETE' })
   },
 
@@ -136,7 +194,10 @@ export const apiClient = {
 
   matching: {
     analyze: (internshipId) =>
-      request('/matching/analyze', { method: 'POST', body: JSON.stringify({ internshipId }) }),
+      request('/matching/analyze', {
+        method: 'POST',
+        body: JSON.stringify({ internshipId })
+      }),
     getResult: (id) => request(`/matching/results/${id}`),
     getHistory: (internshipId) => {
       const qs = internshipId ? `?internshipId=${internshipId}` : '';
@@ -145,12 +206,23 @@ export const apiClient = {
   },
 
   roadmaps: {
-    generate: (data) => request('/roadmaps/generate', { method: 'POST', body: JSON.stringify(data) }),
+    generate: (data) =>
+      request('/roadmaps/generate', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
     list: () => request('/roadmaps'),
     get: (id) => request(`/roadmaps/${id}`),
-    update: (id, data) => request(`/roadmaps/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    update: (id, data) =>
+      request(`/roadmaps/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
     updateTask: (roadmapId, taskId, data) =>
-      request(`/roadmaps/${roadmapId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request(`/roadmaps/${roadmapId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
     listBridgeProjects: (skill) => {
       const qs = skill ? `?skill=${encodeURIComponent(skill)}` : '';
       return request(`/roadmaps/bridge-projects${qs}`);
@@ -162,9 +234,14 @@ export const apiClient = {
       const qs = status ? `?status=${encodeURIComponent(status)}` : '';
       return request(`/applications${qs}`);
     },
-    create: (data) => request('/applications', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data) =>
+      request('/applications', { method: 'POST', body: JSON.stringify(data) }),
     get: (id) => request(`/applications/${id}`),
-    update: (id, data) => request(`/applications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    update: (id, data) =>
+      request(`/applications/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
     delete: (id) => request(`/applications/${id}`, { method: 'DELETE' })
   },
 

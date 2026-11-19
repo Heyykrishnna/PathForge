@@ -44,6 +44,18 @@ export function AuthProvider({ children }) {
     return res.data;
   };
 
+  const verifyOtp = async ({ email, otp }) => {
+    const res = await apiClient.auth.verifyOtp({ email, otp });
+    setUser(res.data.user);
+    setProfile(res.data.profile);
+    return res.data;
+  };
+
+  const resendOtp = async ({ email }) => {
+    const res = await apiClient.auth.resendOtp({ email });
+    return res.data;
+  };
+
   const logout = async () => {
     await apiClient.auth.logout();
     setUser(null);
@@ -69,6 +81,8 @@ export function AuthProvider({ children }) {
         isLoading,
         login,
         register,
+        verifyOtp,
+        resendOtp,
         logout,
         refreshProfile
       }}
