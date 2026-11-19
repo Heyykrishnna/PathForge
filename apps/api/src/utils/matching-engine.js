@@ -38,11 +38,11 @@ export function evaluateEligibility(internship, educations = []) {
   let status = 'eligible';
 
   if (internship.minGpa) {
-    const requiredGpa = parseFloat(internship.minGpa);
+    const requiredGpa = Number.parseFloat(internship.minGpa);
     const studentGpa = educations.find(e => e.gpa)?.gpa;
     if (studentGpa) {
-      const parsedStudentGpa = parseFloat(studentGpa);
-      if (!isNaN(parsedStudentGpa) && parsedStudentGpa < requiredGpa) {
+      const parsedStudentGpa = Number.parseFloat(studentGpa);
+      if (!Number.isNaN(parsedStudentGpa) && parsedStudentGpa < requiredGpa) {
         warnings.push(`Current GPA (${parsedStudentGpa}) is below the preferred minimum of ${requiredGpa}`);
         status = 'warning';
       }

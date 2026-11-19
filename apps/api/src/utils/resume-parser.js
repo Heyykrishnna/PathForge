@@ -57,9 +57,14 @@ export async function extractTextFromPdf(buffer) {
   }
 
   const rawString = buffer.toString('utf8');
-  const textMatches = rawString.match(/\(([^()]+)\)[\s]*Tj/g) || [];
-  if (textMatches.length > 0) {
-    return textMatches.map(m => m.replace(/^[(\s]+|[)\s*Tj]+$/g, '')).join(' ');
+  const matches = [];
+  const textRegex = /\(([^()]+)\)\s*Tj/g;
+  let match;
+  while ((match = textRegex.exec(rawString)) !== null) {
+    matches.push(match[1].trim());
+  }
+  if (matches.length > 0) {
+    return matches.join(' ');
   }
 
   const cleaned = rawString.replace(/[\x00-\x1F\x7F-\x9F]/g, ' ').replace(/\s+/g, ' ').trim();

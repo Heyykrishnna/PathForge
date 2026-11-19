@@ -17,8 +17,8 @@ export class InternshipService {
     limit = 10,
     userId = null
   } = {}) {
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const pageNum = Math.max(1, Number.parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 10));
     const offset = (pageNum - 1) * limitNum;
 
     const conditions = [];
@@ -49,7 +49,7 @@ export class InternshipService {
       .from(internships)
       .where(whereClause);
 
-    const total = parseInt(countResult?.count || 0, 10);
+    const total = Number.parseInt(countResult?.count || 0, 10);
 
     const rows = await db
       .select()

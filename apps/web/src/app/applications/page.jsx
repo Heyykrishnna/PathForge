@@ -353,16 +353,17 @@ export default function ApplicationsPage() {
                   ) : (
                     <div className="pt-1">
                       {app.notes ? (
-                        <p
+                        <button
+                          type="button"
                           onClick={() => {
                             setEditingNotesId(app.id);
                             setNotesDraft(app.notes);
                           }}
-                          className="text-xs text-zinc-400 bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-850 cursor-pointer hover:border-zinc-700 transition-colors"
+                          className="w-full text-left text-xs text-zinc-400 bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-850 hover:border-zinc-700 transition-colors"
                           title="Click to edit notes"
                         >
                           {app.notes}
-                        </p>
+                        </button>
                       ) : (
                         <button
                           onClick={() => {
@@ -434,10 +435,11 @@ export default function ApplicationsPage() {
 
             <form onSubmit={handleCreateSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                <label htmlFor="app-target-role" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   Target Role & Company
                 </label>
                 <select
+                  id="app-target-role"
                   value={selectedInternshipId}
                   onChange={(e) => setSelectedInternshipId(e.target.value)}
                   required
@@ -453,10 +455,11 @@ export default function ApplicationsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                <label htmlFor="app-initial-status" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   Initial Status
                 </label>
                 <select
+                  id="app-initial-status"
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700"
@@ -470,10 +473,11 @@ export default function ApplicationsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                <label htmlFor="app-deadline" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   Application Deadline (Optional)
                 </label>
                 <input
+                  id="app-deadline"
                   type="date"
                   value={newDeadline}
                   onChange={(e) => setNewDeadline(e.target.value)}
@@ -482,10 +486,11 @@ export default function ApplicationsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                <label htmlFor="app-notes" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   Notes & Action Items (Optional)
                 </label>
                 <textarea
+                  id="app-notes"
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   placeholder="E.g. Connected with engineering manager at university hackathon..."

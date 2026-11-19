@@ -295,7 +295,6 @@ export function AuthCard({ initialMode = 'signup' }) {
                       if (error) setError(null);
                     }}
                     onComplete={(code) => handleVerifyOtp(code)}
-                    autoFocus
                     disabled={isLoading}
                     status={error ? 'error' : isLoading ? 'loading' : 'idle'}
                     size="md"
@@ -366,10 +365,11 @@ export function AuthCard({ initialMode = 'signup' }) {
                   {mode === 'signup' && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                        <label htmlFor="auth-first-name" className="mb-1.5 block text-xs font-medium text-zinc-300">
                           First Name
                         </label>
                         <input
+                          id="auth-first-name"
                           type="text"
                           name="firstName"
                           required
@@ -381,10 +381,11 @@ export function AuthCard({ initialMode = 'signup' }) {
                       </div>
 
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                        <label htmlFor="auth-last-name" className="mb-1.5 block text-xs font-medium text-zinc-300">
                           Last Name
                         </label>
                         <input
+                          id="auth-last-name"
                           type="text"
                           name="lastName"
                           required
@@ -398,10 +399,11 @@ export function AuthCard({ initialMode = 'signup' }) {
                   )}
 
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+                    <label htmlFor="auth-email" className="mb-1.5 block text-xs font-medium text-zinc-300">
                       Email
                     </label>
                     <input
+                      id="auth-email"
                       type="email"
                       name="email"
                       required
@@ -414,7 +416,7 @@ export function AuthCard({ initialMode = 'signup' }) {
 
                   <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                      <label className="block text-xs font-medium text-zinc-300">
+                      <label htmlFor="auth-password" className="block text-xs font-medium text-zinc-300">
                         Password
                       </label>
                       {mode === 'login' && (
@@ -433,6 +435,7 @@ export function AuthCard({ initialMode = 'signup' }) {
                     </div>
                     <div className="relative">
                       <input
+                        id="auth-password"
                         type={showPassword ? 'text' : 'password'}
                         name="password"
                         required

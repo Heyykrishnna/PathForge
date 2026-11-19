@@ -105,7 +105,7 @@ export default function HomePage() {
 
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
             <span className="h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
-            Phase 6: Applications & Dashboard
+            <span>Phase 6: Applications & Dashboard</span>
           </span>
         </div>
       </header>

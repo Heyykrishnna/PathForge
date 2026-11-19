@@ -506,7 +506,6 @@ export function OtpInput({
                   inputMode={numeric ? "numeric" : "text"}
                   autoCapitalize={numeric ? undefined : "characters"}
                   autoComplete={index === 0 ? "one-time-code" : "off"}
-                  autoFocus={autoFocus && index === 0}
                   disabled={disabled}
                   aria-label={
                     (numeric ? "Digit " : "Character ") +
