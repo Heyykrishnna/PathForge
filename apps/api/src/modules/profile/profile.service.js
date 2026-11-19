@@ -1,19 +1,35 @@
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { profiles, educations, skills, userSkills } from '../../db/schema/index.js';
+import { profiles, educations, skills, userSkills, users } from '../../db/schema/index.js';
 import { ApiError } from '../../utils/api-error.js';
 import { calculateProfileCompletion } from '../../utils/profile-calculator.js';
 
 export class ProfileService {
   async getProfile(userId) {
-    const [profile] = await db
+    let [profile] = await db
       .select()
       .from(profiles)
       .where(eq(profiles.userId, userId))
       .limit(1);
 
     if (!profile) {
-      throw ApiError.notFound('Profile not found');
+      const [user] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const defaultFirstName = user?.email ? user.email.split('@')[0] : 'User';
+      const [newProfile] = await db
+        .insert(profiles)
+        .values({
+          userId,
+          firstName: defaultFirstName,
+          lastName: '',
+          completionPercentage: 20
+        })
+        .returning();
+      profile = newProfile;
     }
 
     const educationList = await db
@@ -62,18 +78,37 @@ export class ProfileService {
       .where(eq(profiles.userId, userId))
       .limit(1);
 
+    let updated;
     if (!existing) {
-      throw ApiError.notFound('Profile not found');
-    }
+      const [user] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const [updated] = await db
-      .update(profiles)
-      .set({
-        ...updateData,
-        updatedAt: new Date()
-      })
-      .where(eq(profiles.userId, userId))
-      .returning();
+      const defaultFirstName = user?.email ? user.email.split('@')[0] : 'User';
+      const [created] = await db
+        .insert(profiles)
+        .values({
+          userId,
+          firstName: defaultFirstName,
+          lastName: '',
+          ...updateData,
+          updatedAt: new Date()
+        })
+        .returning();
+      updated = created;
+    } else {
+      const [res] = await db
+        .update(profiles)
+        .set({
+          ...updateData,
+          updatedAt: new Date()
+        })
+        .where(eq(profiles.userId, userId))
+        .returning();
+      updated = res;
+    }
 
     const educationList = await db
       .select()
